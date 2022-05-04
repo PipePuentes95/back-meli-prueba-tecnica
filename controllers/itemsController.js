@@ -8,28 +8,38 @@ exports.getSearch = async (req, res) => {
     try {
         const { data } = await axios.get(`https://api.mercadolibre.com/sites/MLA/search?q=${req.query.q}`);
 
-        let categories = data.available_filters.find((item) => item.id === 'category');
-        categories = categories.values.map((val) => val.name);
-        
-        const items = data.results.slice(0, 4).map((item) => ({
-            id: item.id,
-            title: item.title,
-            price: {
-                currency: item.currency_id,
-                amount: Math.trunc(item.price),
-                decimals: handlerdecimals(item.price),
-            },
-            picture: item.thumbnail,
-            condition: item.condition,
-            free_shipping: item.shipping.free_shipping
-        }));
+        if(data.results.length !== 0) {
+            let categories = data.available_filters.find((item) => item.id === 'category');
+            categories = categories.values.map((val) => val.name);
 
-        const author = {
-            name: 'David Felipe',
-            lastname: 'Puentes Farfan'
-        } 
-
-        res.json({ author, categories, items });
+            const max_items = 4;
+            
+            const items = data.results
+                .filter((_, index) => index < max_items)
+                .map((item) => ({
+                    id: item.id,
+                    title: item.title,
+                    price: {
+                        currency: item.currency_id,
+                        amount: item.price,
+                        decimals: handlerdecimals(item.price),
+                    },
+                    picture: item.thumbnail,
+                    condition: item.condition,
+                    free_shipping: item.shipping.free_shipping,
+                    state_name: item.address.state_name
+                }
+            ));
+    
+            const author = {
+                name: 'David Felipe',
+                lastname: 'Puentes Farfan'
+            } 
+    
+            res.json({ author, categories, items });
+        } else {
+            res.json([]);
+        }
     } catch (err) {
         const { status, data } = err.response;
         res.json({ status, ...data });
@@ -41,7 +51,7 @@ exports.getItem = async (req, res) => {
         const itemGet = axios.get(`https://api.mercadolibre.com/items/${req.params.id}`);
         const itemDescriptionGet = axios.get(`https://api.mercadolibre.com/items/${req.params.id}/description`);
 
-        const [itemInfo, descriptionInfo] = await axios.all([itemGet, itemDescriptionGet]);
+        const [itemInfo, descriptionInfo] = await Promise.all([itemGet, itemDescriptionGet]);
 
         const { data: dataInfo } = itemInfo;
         const { data: dataDesc } = descriptionInfo;
@@ -51,7 +61,7 @@ exports.getItem = async (req, res) => {
             title: dataInfo.title,
             price: {
                 currency: dataInfo.currency_id,
-                amount: Math.trunc(dataInfo.price),
+                amount: dataInfo.price,
                 decimals: handlerdecimals(dataInfo.price),
             },
             picture: dataInfo.thumbnail,
